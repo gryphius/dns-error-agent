@@ -1,6 +1,7 @@
 package main
 
 import (
+	"flag"
 	"fmt"
 	"log"
 	"net"
@@ -239,12 +240,30 @@ func listen() {
 }
 
 func main() {
+	parseArgs()
+
+	// print configuration
+	log.Printf("Error Report Zone Name: %s", GLOBAL_ZONENAME)
+	log.Printf("Nameservers: %s", strings.Join(GLOBAL_NAMESERVERS, ", "))
+	log.Printf("TXT Response: %s", GLOBAL_TXTRESPONSE)
 
 	// Start the DNS server
 	go listen()
 
 	// Block forever
 	select {}
+}
+
+func parseArgs() {
+	var nameservers multiValueFlag
+	flag.Var(&nameservers, "ns", "List of nameservers for the global zone (can be specified multiple times)")
+	flag.StringVar(&GLOBAL_ZONENAME, "zonename", GLOBAL_ZONENAME, "Error reporting zone (default: "+GLOBAL_ZONENAME+")")
+	flag.StringVar(&GLOBAL_TXTRESPONSE, "txtresponse", GLOBAL_TXTRESPONSE, "TXT response message (default: "+GLOBAL_TXTRESPONSE+")")
+	flag.Parse()
+
+	if len(nameservers) > 0 {
+		GLOBAL_NAMESERVERS = nameservers
+	}
 }
 
 // extract RFC9567 information from the qname
@@ -280,8 +299,8 @@ func extractrfc9567(qname string) (string, uint16, uint16, error) {
 	// initialize a slice to hold the parts
 	parts := strings.Split(qname, ".")
 
-	// print parts
-	log.Printf("Extracting parts from QNAME: %s", qname)
+	// debug parts
+	//log.Printf("Extracting parts from QNAME: %s", qname)
 
 	// the first and the last parts should be "_er"
 	if len(parts) < 3 || parts[0] != "_er" || parts[len(parts)-1] != "_er" {
@@ -329,4 +348,18 @@ func extractEDE(message *dns.Msg) (ede_message string) {
 		}
 	}
 	return ""
+}
+
+// Define a custom flag type to hold multiple values
+type multiValueFlag []string
+
+// Implement the String method (required by flag.Value interface)
+func (m *multiValueFlag) String() string {
+	return strings.Join(*m, ",")
+}
+
+// Implement the Set method (required by flag.Value interface)
+func (m *multiValueFlag) Set(value string) error {
+	*m = append(*m, value)
+	return nil
 }
